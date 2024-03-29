@@ -8,6 +8,20 @@ import plotly.graph_objects as go
 
 ########################## Setup ########################################
 
+# notion colors to rgb
+COLOR_NAME_TO_RGB = {
+    "default": "rgb(55, 55, 55)",
+    "gray": "rgb(90, 90, 90)",
+    "brown": "rgb(91, 61, 47)",
+    "orange": "rgb(125, 79, 39)",
+    "yellow": "rgb(140, 110, 52)",
+    "green": "rgb(55, 95, 65)",
+    "blue": "rgb(47, 68, 105)",
+    "purple": "rgb(69, 48, 97)",
+    "pink": "rgb(98, 52, 75)",
+    "red": "rgb(103, 57, 50)",
+}
+
 # example goals for activities
 DAILY_GOAL_FOR_CAT = {
     "write": "00:30",
@@ -24,11 +38,6 @@ DAILY_GOAL_FOR_CAT = {
 
 # import private goals
 from goals import DAILY_GOAL_FOR_CAT
-
-# load content from .env file
-load_dotenv()
-
-TIMETRACKER_DB_ID = os.getenv("TIMETRACKER_DB_ID")
 
 # create argparser
 parser = argparse.ArgumentParser()
@@ -48,8 +57,12 @@ parser.add_argument(
 # parse args
 args = parser.parse_args()
 
+# load content from .env file
+load_dotenv()
+
 # setup notion client
 notion = Client(auth=os.getenv("NOTION_TOKEN"))
+TIMETRACKER_DB_ID = os.getenv("TIMETRACKER_DB_ID")
 
 ########################## DB Access ########################################
 
@@ -140,6 +153,98 @@ for idx, entry in enumerate(entries):
     # set of uniqe days
     days.add(start_time.date())
 
+########################## Plotting ########################################
+
+# reverse for easier use
+events = reversed(events)
+
+
+def calculate_durations(event):
+    start_time = event["start_time"]
+    duration_hours = event["duration"].total_seconds() / 3600
+    end_time = event["end_time"]
+    name = event["name"]
+    color = COLOR_NAME_TO_RGB[event["color"]]
+
+    if start_time.day != end_time.day:
+        end_of_first_day = datetime(
+            start_time.year, start_time.month, start_time.day, 23, 59, 59
+        )
+        first_day_duration_hours = (
+            end_of_first_day - start_time
+        ).total_seconds() / 3600
+
+        next_day_duration_hours = duration_hours - first_day_duration_hours
+
+        return [
+            (start_time.date(), first_day_duration_hours, name, color),
+            (
+                (start_time + timedelta(days=1)).date(),
+                next_day_duration_hours,
+                name,
+                color,
+            ),
+        ]
+    else:
+        return [(start_time.date(), duration_hours, name, color)]
+
+
+data = [item for event in events for item in calculate_durations(event)]
+
+x, y, labels, colors = zip(*data)
+
+fig = go.Figure(
+    data=[go.Bar(x=x, y=y, text=labels, marker_color=colors, textposition="auto")]
+)
+fig.update_layout(
+    xaxis_title="Date",
+    yaxis_title="Time",
+    xaxis=dict(side="top", tickfont=dict(color="white")),
+    yaxis=dict(
+        autorange="reversed",
+        tickfont=dict(color="white"),
+        tickmode="array",
+        tickvals=list(range(24)),  # Hours from 0 to 23
+        ticktext=[f"{i}'" for i in range(24)],
+    ),
+    shapes=[
+        dict(
+            type='line',
+            xref='paper',
+            yref='y',
+            x0=0,
+            y0=i + 0.5,  # Position at every half hour
+            x1=1,
+            y1=i + 0.5,
+            line=dict(
+                color='rgb(40,40,40)',
+                width=1,
+            ),
+            layer='below', 
+        ) for i in range(23)  # For each hour, add a half-hour mark
+    ],
+    plot_bgcolor="rgb(17,17,17)",
+    paper_bgcolor="rgb(17,17,17)",
+    font=dict(color="white"),
+    margin=dict(l=50, r=50, t=50, b=50),
+    hoverlabel=dict(
+        bgcolor="black", font=dict(color="white")
+    ),
+    legend=dict(font=dict(color="white")),
+    title=dict(font=dict(color="white")),
+    yaxis_showgrid=True,
+    xaxis_showgrid=True,
+    xaxis_gridcolor="rgb(50,50,50)",
+    yaxis_gridcolor="rgb(50,50,50)",
+    yaxis_zeroline=True,
+    xaxis_zeroline=True,
+    yaxis_zerolinecolor="rgb(50,50,50)",
+    xaxis_zerolinecolor="rgb(50,50,50)",
+)
+fig.update_traces(marker_line_color="rgb(50,50,50)", marker_line_width=0.5)
+
+fig.show()
+
 ########################## Formatting and printing ########################################
 
 # format to HH:mm
@@ -157,7 +262,11 @@ if days_period > 1:
 
 
 # print results
-print(f"Results for the last {days_period} day(s)")
+if args.period == "day":
+    date = datetime.fromisoformat(entries[-1]["properties"]["Date"]["date"]["start"])
+    print(f"started day at {date.hour}:{date.minute}")
+else:
+    print(f"results for the last {days_period} days")
 print(
     "{:<12} {:<12} {:<12} {:<12}".format("category", "total time", "time / day", "goal")
 )
