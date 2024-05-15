@@ -39,19 +39,51 @@ DAILY_GOAL_FOR_CAT = {
 # import private goals
 from goals import DAILY_GOAL_FOR_CAT
 
+
 # create argparser
+def valid_date(s):
+    try:
+        return datetime.strptime(s, "%Y-%m-%d")
+    except ValueError:
+        msg = "Not a valid date in the format YYYY-MM-DD: '{0}'.".format(s)
+        raise argparse.ArgumentTypeError(msg)
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument(
+    "-t",
     "--timeframe",
-    choices=["this", "past"],
-    default="past",
-    help="timeframe: 'this' or 'past'",
+    choices=[
+        "this day",
+        "past day",
+        "this week",
+        "past week",
+        "this month",
+        "past month",
+    ],
+    help="timeframe: 'this' or 'past' and 'day', 'week' or 'month'",
+    required=False,
 )
 parser.add_argument(
-    "--period",
-    choices=["day", "week", "month"],
-    default="week",
-    help="period: 'day', 'week' or 'month",
+    "-a",
+    "--after",
+    help="show entries after date (including). format YYYY-mm-dd",
+    required=False,
+    type=valid_date,
+)
+parser.add_argument(
+    "-b",
+    "--before",
+    help="show entries before date (including). format YYYY-mm-dd",
+    required=False,
+    type=valid_date,
+)
+parser.add_argument(
+    "-v",
+    "--visualize",
+    action="store_true",
+    help="shows visualization if set",
+    required=False,
 )
 
 # parse args
@@ -66,23 +98,56 @@ TIMETRACKER_DB_ID = os.getenv("TIMETRACKER_DB_ID")
 
 ########################## DB Access ########################################
 
+time_unit = None
+time_relation = None
+
+
 # set filter and sorts according to params
-if args.period == "day":
-    date = (
-        datetime.now()
-        if args.timeframe == "this"
-        else datetime.now() - timedelta(days=1)
-    )
-    date = date.strftime("%Y-%m-%d")
+def build_date_filter(args):
 
-    filter_params_scope = {"equals": date}
-else:
-    filter_params_scope = {f"{args.timeframe}_{args.period}": {}}
+    filter_conditions = []
 
-filter_params = {
-    "property": "Date",
-    "date": filter_params_scope,
-}
+    # if timeframe is set, before and after are neglected
+    if args.timeframe:
+        global time_unit
+        time_relation, time_unit = args.timeframe.split()
+        if time_unit == "day":
+            date = (
+                datetime.now()
+                if time_relation == "this"
+                else datetime.now() - timedelta(days=1)
+            )
+            filter_condition = {"equals": date.strftime("%Y-%m-%d")}
+        else:
+            filter_condition = {f"{time_relation}_{time_unit}": {}}
+
+        return {"property": "Date", "date": filter_condition}
+
+    if args.after:
+        filter_conditions.append(
+            {
+                "property": "Date",
+                "date": {"on_or_after": args.after.strftime("%Y-%m-%d")},
+            }
+        )
+
+    if args.before:
+        filter_conditions.append(
+            {
+                "property": "Date",
+                "date": {"on_or_before": args.before.strftime("%Y-%m-%d")},
+            }
+        )
+
+    if filter_conditions:
+        if len(filter_conditions) == 1:
+            return filter_conditions[0]
+        return {"and": filter_conditions}
+
+    return {}
+
+
+filter_params = build_date_filter(args)
 
 sorts = [{"property": "Date", "direction": "descending"}]
 
@@ -262,7 +327,7 @@ if days_period > 1:
 
 
 # print results
-if args.period == "day":
+if time_unit is not None and time_unit == "day":
     date = datetime.fromisoformat(entries[-1]["properties"]["Date"]["date"]["start"])
     print(f"started day at {date.hour}:{date.minute}")
 else:
