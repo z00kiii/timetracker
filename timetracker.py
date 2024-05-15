@@ -220,13 +220,15 @@ for idx, entry in enumerate(entries):
 
 ########################## Plotting ########################################
 
-mport plotly.graph_objects as go
+import plotly.graph_objects as go
 from datetime import datetime, timedelta
+
 
 def format_duration_hours(duration_hours):
     hours = int(duration_hours)
     minutes = int((duration_hours - hours) * 60)
     return f"{hours}h {minutes}m"
+
 
 def calculate_durations(event):
     start_time = event["start_time"]
@@ -281,6 +283,7 @@ def calculate_durations(event):
                 end_time_str,
             )
         ]
+
 
 if args.visualize:
     # reverse for easier use
