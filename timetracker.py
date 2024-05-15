@@ -220,9 +220,13 @@ for idx, entry in enumerate(entries):
 
 ########################## Plotting ########################################
 
-# reverse for easier use
-events = reversed(events)
+mport plotly.graph_objects as go
+from datetime import datetime, timedelta
 
+def format_duration_hours(duration_hours):
+    hours = int(duration_hours)
+    minutes = int((duration_hours - hours) * 60)
+    return f"{hours}h {minutes}m"
 
 def calculate_durations(event):
     start_time = event["start_time"]
@@ -230,6 +234,10 @@ def calculate_durations(event):
     end_time = event["end_time"]
     name = event["name"]
     color = COLOR_NAME_TO_RGB[event["color"]]
+
+    formatted_duration = format_duration_hours(duration_hours)
+    start_time_str = start_time.strftime("%H:%M")
+    end_time_str = end_time.strftime("%H:%M")
 
     if start_time.day != end_time.day:
         end_of_first_day = datetime(
@@ -242,73 +250,106 @@ def calculate_durations(event):
         next_day_duration_hours = duration_hours - first_day_duration_hours
 
         return [
-            (start_time.date(), first_day_duration_hours, name, color),
+            (
+                start_time.date(),
+                first_day_duration_hours,
+                name,
+                color,
+                format_duration_hours(first_day_duration_hours),
+                start_time_str,
+                "23:59",
+            ),
             (
                 (start_time + timedelta(days=1)).date(),
                 next_day_duration_hours,
                 name,
                 color,
+                format_duration_hours(next_day_duration_hours),
+                "00:00",
+                end_time_str,
             ),
         ]
     else:
-        return [(start_time.date(), duration_hours, name, color)]
+        return [
+            (
+                start_time.date(),
+                duration_hours,
+                name,
+                color,
+                formatted_duration,
+                start_time_str,
+                end_time_str,
+            )
+        ]
 
+if args.visualize:
+    # reverse for easier use
+    events = reversed(events)
 
-data = [item for event in events for item in calculate_durations(event)]
+    data = [item for event in events for item in calculate_durations(event)]
 
-x, y, labels, colors = zip(*data)
+    x, y, labels, colors, formatted_durations, start_times, end_times = zip(*data)
 
-fig = go.Figure(
-    data=[go.Bar(x=x, y=y, text=labels, marker_color=colors, textposition="auto")]
-)
-fig.update_layout(
-    xaxis_title="Date",
-    yaxis_title="Time",
-    xaxis=dict(side="top", tickfont=dict(color="white")),
-    yaxis=dict(
-        autorange="reversed",
-        tickfont=dict(color="white"),
-        tickmode="array",
-        tickvals=list(range(24)),  # Hours from 0 to 23
-        ticktext=[f"{i}'" for i in range(24)],
-    ),
-    shapes=[
-        dict(
-            type='line',
-            xref='paper',
-            yref='y',
-            x0=0,
-            y0=i + 0.5,  # Position at every half hour
-            x1=1,
-            y1=i + 0.5,
-            line=dict(
-                color='rgb(40,40,40)',
-                width=1,
-            ),
-            layer='below', 
-        ) for i in range(23)  # For each hour, add a half-hour mark
-    ],
-    plot_bgcolor="rgb(17,17,17)",
-    paper_bgcolor="rgb(17,17,17)",
-    font=dict(color="white"),
-    margin=dict(l=50, r=50, t=50, b=50),
-    hoverlabel=dict(
-        bgcolor="black", font=dict(color="white")
-    ),
-    legend=dict(font=dict(color="white")),
-    title=dict(font=dict(color="white")),
-    yaxis_showgrid=True,
-    xaxis_showgrid=True,
-    xaxis_gridcolor="rgb(50,50,50)",
-    yaxis_gridcolor="rgb(50,50,50)",
-    yaxis_zeroline=True,
-    xaxis_zeroline=True,
-    yaxis_zerolinecolor="rgb(50,50,50)",
-    xaxis_zerolinecolor="rgb(50,50,50)",
-)
-fig.update_traces(marker_line_color="rgb(50,50,50)", marker_line_width=0.5)
+    fig = go.Figure(
+        data=[
+            go.Bar(
+                x=x,
+                y=y,
+                text=labels,
+                marker_color=colors,
+                textposition="auto",
+                hovertemplate="<b>%{text}</b><br>Start: %{customdata[1]}<br>End: %{customdata[2]}<br>Duration: %{customdata[0]}<extra></extra>",  # Custom hover template
+                customdata=list(zip(formatted_durations, start_times, end_times)),
+            )
+        ]
+    )
+    fig.update_layout(
+        xaxis_title="Date",
+        yaxis_title="Time",
+        xaxis=dict(side="top", tickfont=dict(color="white")),
+        yaxis=dict(
+            autorange="reversed",
+            tickfont=dict(color="white"),
+            tickmode="array",
+            tickvals=list(range(24)),  # Hours from 0 to 23
+            ticktext=[f"{i}'" for i in range(24)],
+        ),
+        shapes=[
+            dict(
+                type="line",
+                xref="paper",
+                yref="y",
+                x0=0,
+                y0=i + 0.5,  # Position at every half hour
+                x1=1,
+                y1=i + 0.5,
+                line=dict(
+                    color="rgb(40,40,40)",
+                    width=1,
+                ),
+                layer="below",
+            )
+            for i in range(23)  # For each hour, add a half-hour mark
+        ],
+        plot_bgcolor="rgb(17,17,17)",
+        paper_bgcolor="rgb(17,17,17)",
+        font=dict(color="white"),
+        margin=dict(l=50, r=50, t=50, b=50),
+        hoverlabel=dict(bgcolor="black", font=dict(color="white")),
+        legend=dict(font=dict(color="white")),
+        title=dict(font=dict(color="white")),
+        yaxis_showgrid=True,
+        xaxis_showgrid=True,
+        xaxis_gridcolor="rgb(50,50,50)",
+        yaxis_gridcolor="rgb(50,50,50)",
+        yaxis_zeroline=True,
+        xaxis_zeroline=True,
+        yaxis_zerolinecolor="rgb(50,50,50)",
+        xaxis_zerolinecolor="rgb(50,50,50)",
+    )
+    fig.update_traces(marker_line_color="rgb(50,50,50)", marker_line_width=0.5)
 
-fig.show()
+    fig.show()
 
 ########################## Formatting and printing ########################################
 
