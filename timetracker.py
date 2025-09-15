@@ -79,6 +79,14 @@ parser.add_argument(
     type=valid_date,
 )
 parser.add_argument(
+    "-s",
+    "--sort",
+    choices=["standard", "time"],
+    default="time",
+    help="sort output: 'standard' for original order, 'time' for descending by time spent",
+    required=False,
+)
+parser.add_argument(
     "-v",
     "--visualize",
     action="store_true",
@@ -168,6 +176,9 @@ while True:
         break
 
     start_cursor = timetracks["next_cursor"]
+
+if len(entries) == 0:
+    raise RuntimeError("No data for this day")
 
 # ['object', 'results', 'next_cursor', 'has_more', 'type', 'page_or_database', 'request_id']
 
@@ -363,26 +374,30 @@ for cat in time_for_cat:
         time_for_cat[cat] // 3600, (time_for_cat[cat] % 3600) // 60
     )
 
-# get number of analized days
+# get number of analyzed days
 days_period = len(days)
 # calc the current day as relative
 if days_period > 1:
     days_period = days_period - 1 + (datetime.now().time().hour) / 24
 
+# sort categories
+sorted_cats = time_for_cat.keys()
+if args.sort == "time":
+    sorted_cats = sorted(sorted_cats, key=lambda cat: time_for_cat[cat], reverse=True)
 
 # print results
 if time_unit is not None and time_unit == "day":
     date = datetime.fromisoformat(entries[-1]["properties"]["Date"]["date"]["start"])
     print(f"started day at {date.hour}:{date.minute}")
 else:
-    print(f"results for the last {days_period} days")
+    print(f"results for the last {days_period:.2f} days")
 print(
-    "{:<12} {:<12} {:<12} {:<12}".format("category", "total time", "time / day", "goal")
+    "{:<25} {:<12} {:<12} {:<12}".format("category", "total time", "time / day", "goal")
 )
-print("---------------------------------------------")
-for cat in time_for_cat:
+print("---------------------------------------------------------")
+for cat in sorted_cats:
     print(
-        "{:<12} {:<12} {:<12} {:<12}".format(
+        "{:<25} {:<12} {:<12} {:<12}".format(
             cat,
             time_for_cat_formatted[cat],
             "{:02}:{:02}".format(
