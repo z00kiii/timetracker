@@ -396,17 +396,28 @@ print(
 )
 print("---------------------------------------------------------")
 for cat in sorted_cats:
-    print(
-        "{:<25} {:<12} {:<12} {:<12}".format(
-            cat,
-            time_for_cat_formatted[cat],
-            "{:02}:{:02}".format(
-                int(time_for_cat[cat] // (3600 * days_period)),
-                int(
-                    int((time_for_cat[cat] % (3600 * days_period)))
-                    // (60 * days_period)
+    if time_for_cat[cat] > 0:
+        print(
+            "{:<25} {:<12} {:<12} {:<12}".format(
+                cat,
+                time_for_cat_formatted[cat],
+                "{:02}:{:02}".format(
+                    int(time_for_cat[cat] // (3600 * days_period)),
+                    int(
+                        int((time_for_cat[cat] % (3600 * days_period)))
+                        // (60 * days_period)
+                    ),
                 ),
-            ),
-            DAILY_GOAL_FOR_CAT[cat] if cat in DAILY_GOAL_FOR_CAT else "--:--",
+                DAILY_GOAL_FOR_CAT[cat] if cat in DAILY_GOAL_FOR_CAT else "--:--",
+            )
         )
+
+# Arc summary section
+arc_categories = [cat for cat in time_for_cat.keys() if cat.startswith("arc_")]
+if arc_categories:
+    total_arc_seconds = sum(time_for_cat[cat] for cat in arc_categories)
+    arc_formatted = "{:02}:{:02}".format(
+        total_arc_seconds // 3600, (total_arc_seconds % 3600) // 60
     )
+    print("---------------------------------------------------------")
+    print("{:<25} {:<12}".format("ARC TOTAL", arc_formatted))
