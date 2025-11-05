@@ -104,6 +104,9 @@ load_dotenv()
 notion = Client(auth=os.getenv("NOTION_TOKEN"))
 TIMETRACKER_DB_ID = os.getenv("TIMETRACKER_DB_ID")
 
+db_meta = notion.databases.retrieve(database_id=TIMETRACKER_DB_ID)
+DATA_SOURCE_ID = db_meta["data_sources"][0]["id"]
+
 ########################## DB Access ########################################
 
 time_unit = None
@@ -164,8 +167,8 @@ entries = []
 start_cursor = None
 
 while True:
-    timetracks = notion.databases.query(
-        database_id=TIMETRACKER_DB_ID,
+    timetracks = notion.data_sources.query(
+        data_source_id=DATA_SOURCE_ID,
         filter=filter_params,
         sorts=sorts,
         start_cursor=start_cursor,
@@ -183,7 +186,7 @@ if len(entries) == 0:
 # ['object', 'results', 'next_cursor', 'has_more', 'type', 'page_or_database', 'request_id']
 
 # get database properties for creation of time_for_cat dict
-db = notion.databases.retrieve(database_id=TIMETRACKER_DB_ID)
+db = notion.data_sources.retrieve(data_source_id=DATA_SOURCE_ID)
 
 ########################## Data interpretation ########################################
 
